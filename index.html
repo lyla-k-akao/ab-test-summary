@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>메시지 광고 A/B 실험 요약</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+    background: #EFEFEF;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+
+  /* ============================
+     MODAL
+  ============================ */
+  .modal {
+    background: #fff;
+    border-radius: 12px;
+    width: 1080px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.14);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ============================
+     HEADER
+  ============================ */
+  .modal-header {
+    padding: 24px 28px 0;
+    position: relative;
+  }
+  .close-btn {
+    position: absolute; top: 20px; right: 24px;
+    font-size: 22px; color: #AAA; cursor: pointer; line-height: 1;
+  }
+  .msg-id { font-size: 11px; color: #BBBBBB; margin-bottom: 7px; }
+  .campaign-title { font-size: 20px; font-weight: 700; color: #111; margin-bottom: 10px; }
+  .status-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: #666; padding-bottom: 18px;
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #AAAAAA; }
+  .divider { height: 1px; background: #EEEEEE; }
+
+  /* ============================
+     발송 성과
+  ============================ */
+  .delivery-section {
+    padding: 18px 28px;
+    display: flex; align-items: flex-start; justify-content: space-between;
+  }
+  .delivery-left { display: flex; align-items: flex-start; gap: 32px; }
+  .section-label { font-size: 13px; font-weight: 600; color: #333; padding-top: 4px; min-width: 56px; }
+  .perf-metrics { display: flex; gap: 36px; }
+  .perf-metric-name { font-size: 12px; color: #999; margin-bottom: 4px; }
+  .perf-metric-val { display: flex; align-items: baseline; gap: 7px; }
+  .perf-num { font-size: 22px; font-weight: 700; color: #111; }
+  .perf-rate { font-size: 13px; font-weight: 600; color: #4A90E2; }
+  .data-refresh { font-size: 11px; color: #C0C0C0; padding-top: 4px; }
+
+  /* ============================
+     상세 정보 / TABS
+  ============================ */
+  .detail-header { padding: 0 28px; }
+  .detail-label { font-size: 13px; font-weight: 600; color: #333; padding: 14px 0 0; }
+  .main-tabs {
+    display: flex; border-bottom: 1px solid #EEEEEE; margin-top: 10px;
+  }
+  .main-tab {
+    padding: 10px 18px; font-size: 13px; color: #AAAAAA;
+    cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .main-tab.active { color: #111; font-weight: 600; border-bottom-color: #111; }
+
+  /* ============================
+     BODY (two column)
+  ============================ */
+  .modal-body { display: flex; min-height: 620px; }
+
+  /* ============================
+     LEFT PANEL
+  ============================ */
+  .left-panel {
+    flex: 1; border-right: 1px solid #EEEEEE; overflow-y: auto;
+    display: flex; flex-direction: column;
+  }
+  .sub-tabs {
+    display: flex; padding: 0 28px; border-bottom: 1px solid #EEEEEE; flex-shrink: 0;
+  }
+  .sub-tab {
+    padding: 12px 14px; font-size: 13px; color: #AAAAAA;
+    cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    white-space: nowrap;
+  }
+  .sub-tab.active { color: #111; font-weight: 600; border-bottom-color: #111; }
+
+  /* ============================
+     SUMMARY CONTENT
+  ============================ */
+  .summary-content {
+    padding: 22px 28px 28px;
+    display: flex; flex-direction: column; gap: 26px; flex: 1;
+  }
+
+  /* ── Section ── */
+  .summary-section {}
+  .summary-section-title {
+    font-size: 13px; font-weight: 600; color: #222; margin-bottom: 14px;
+  }
+
+  /* ── Distribution bars ── */
+  .dist-rows { display: flex; flex-direction: column; gap: 10px; }
+  .dist-row { display: flex; align-items: center; gap: 10px; }
+  .dist-row-label {
+    font-size: 12px; color: #888; width: 42px; text-align: right; flex-shrink: 0;
+  }
+  .dist-bar {
+    flex: 1; height: 34px;
+    display: flex; border-radius: 5px; overflow: hidden; gap: 1px;
+  }
+  .dist-seg {
+    height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.95);
+    white-space: nowrap; overflow: hidden;
+    cursor: default; transition: filter 0.15s;
+    position: relative;
+  }
+  .dist-seg:hover { filter: brightness(0.88); }
+  .dist-total-label {
+    font-size: 12px; color: #888; width: 72px; flex-shrink: 0;
+  }
+
+  /* tooltip */
+  .dist-seg .tip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%; transform: translateX(-50%);
+    background: rgba(30,30,30,0.88);
+    color: white; padding: 5px 9px;
+    border-radius: 5px; font-size: 11px;
+    white-space: nowrap; z-index: 200; pointer-events: none;
+  }
+  .dist-seg .tip::after {
+    content: '';
+    position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: rgba(30,30,30,0.88);
+  }
+  .dist-seg:hover .tip { display: block; }
+
+  .dist-legend {
+    display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap; padding-left: 52px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #666; }
+  .legend-chip {
+    width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0;
+  }
+
+  /* ── KPI grid ── */
+  .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .kpi-card {
+    background: #FAFAFA; border: 1px solid #EFEFEF;
+    border-radius: 8px; padding: 15px 16px;
+  }
+  .kpi-card-title {
+    font-size: 12px; font-weight: 600; color: #444; margin-bottom: 13px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .kpi-card-subtitle { font-size: 10px; color: #BBBBBB; font-weight: 400; }
+
+  .h-bars { display: flex; flex-direction: column; gap: 9px; }
+  .h-bar-row { display: flex; align-items: center; gap: 8px; }
+  .h-bar-msg-label {
+    font-size: 11px; width: 54px; flex-shrink: 0;
+    font-weight: 600; display: flex; align-items: center; gap: 3px;
+  }
+  .h-bar-track {
+    flex: 1; height: 20px;
+    background: #E8E8E8; border-radius: 3px; overflow: hidden;
+  }
+  .h-bar-fill {
+    height: 100%; border-radius: 3px;
+    transition: width 0.6s cubic-bezier(0.25,0.46,0.45,0.94);
+  }
+  .h-bar-val {
+    font-size: 12px; font-weight: 600; color: #333;
+    width: 40px; text-align: right; flex-shrink: 0;
+  }
+  .h-bar-val.winner-val { font-weight: 700; }
+
+  /* ── Cost cards ── */
+  .cost-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .cost-card {
+    background: #FAFAFA; border: 1px solid #EFEFEF;
+    border-radius: 8px; padding: 14px 15px;
+  }
+  .cost-card-title {
+    font-size: 11px; color: #AAAAAA; font-weight: 500;
+    margin-bottom: 11px; white-space: nowrap;
+  }
+  .cost-items { display: flex; flex-direction: column; gap: 8px; }
+  .cost-item {
+    display: flex; justify-content: space-between;
+    align-items: center; font-size: 12px;
+  }
+  .cost-item-left { display: flex; align-items: center; gap: 6px; color: #666; }
+  .msg-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .cost-val { font-weight: 600; color: #333; }
+  .cost-val.best { color: #27AE60; }
+  .best-chip {
+    font-size: 9px; background: #E8F8EF; color: #27AE60;
+    padding: 1px 5px; border-radius: 8px; font-weight: 700;
+    margin-left: 4px;
+  }
+
+  /* ============================
+     RIGHT PANEL
+  ============================ */
+  .right-panel { width: 358px; flex-shrink: 0; padding: 0 20px 24px; }
+
+  .msg-nav {
+    display: flex; align-items: center; gap: 3px;
+    padding: 14px 0 12px;
+    border-bottom: 1px solid #EEEEEE;
+    margin-bottom: 14px;
+  }
+  .nav-arr { font-size: 14px; color: #CCCCCC; cursor: pointer; padding: 3px 2px; flex-shrink: 0; }
+  .msg-nav-btn {
+    padding: 5px 10px; font-size: 12px;
+    border: 1px solid #DCDCDC; border-radius: 4px;
+    background: white; color: #999; cursor: pointer;
+    flex-shrink: 0; white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .msg-nav-btn.active {
+    background: #1A1A1A; border-color: #1A1A1A;
+    color: white; font-weight: 600;
+  }
+
+  .preview-title { font-size: 12px; font-weight: 600; color: #555; margin-bottom: 12px; }
+
+  /* phone mockup */
+  .phone-wrap {
+    background: #DEE5ED; border-radius: 12px;
+    padding: 10px 10px 16px;
+  }
+  .kt-topbar {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 6px 4px 10px;
+  }
+  .kt-topbar-left { display: flex; align-items: center; gap: 8px; }
+  .kt-back { font-size: 18px; color: #333; }
+  .kt-channel-name { font-size: 13px; font-weight: 700; color: #111; line-height: 1.2; }
+  .kt-channel-id { font-size: 10px; color: #999; }
+  .kt-topbar-icons { display: flex; gap: 10px; font-size: 15px; color: #444; }
+
+  .kt-sender { font-size: 11px; color: #777; margin-bottom: 4px; padding-left: 42px; }
+  .kt-msg-row { display: flex; gap: 8px; align-items: flex-start; }
+  .kt-avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #FFE812;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .kt-bubble {
+    background: white;
+    border-radius: 4px 12px 12px 12px;
+    overflow: hidden; max-width: 230px;
+  }
+  .kt-card-img {
+    width: 100%; height: 108px;
+    background: linear-gradient(150deg, #2a5ca8 0%, #1a3a6e 100%);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 4px; padding: 10px;
+    text-align: center;
+  }
+  .kt-badge {
+    font-size: 9px; letter-spacing: 1.5px; color: rgba(255,255,255,0.7);
+    border: 1px solid rgba(255,255,255,0.4);
+    padding: 2px 7px; border-radius: 2px; margin-bottom: 2px;
+  }
+  .kt-card-headline {
+    font-size: 12px; font-weight: 700; color: white; line-height: 1.4;
+  }
+  .kt-coupon-box {
+    background: rgba(0,0,0,0.28);
+    border-radius: 4px; padding: 6px 14px; margin-top: 4px;
+    text-align: center;
+  }
+  .kt-coupon-val { font-size: 20px; font-weight: 700; color: white; }
+  .kt-coupon-cond { font-size: 9px; color: rgba(255,255,255,0.7); margin-top: 1px; }
+
+  .kt-card-body { padding: 10px 12px; }
+  .kt-card-title { font-size: 12px; font-weight: 700; color: #111; margin-bottom: 4px; }
+  .kt-card-desc { font-size: 10px; color: #888; line-height: 1.5; margin-bottom: 9px; }
+  .kt-btn {
+    display: block; width: 100%;
+    padding: 7px; border: 1px solid #DDDDDD;
+    border-radius: 4px; text-align: center;
+    font-size: 12px; color: #333; cursor: pointer;
+    font-family: inherit;
+  }
+  .kt-footer { padding: 6px 10px; font-size: 10px; color: #BBBBBB; border-top: 1px solid #F5F5F5; }
+
+  .preview-note {
+    margin-top: 10px; font-size: 11px; color: #BBBBBB; line-height: 1.5;
+    display: flex; gap: 5px;
+  }
+
+  /* ============================
+     COLORS
+  ============================ */
+  .c1 { background-color: #5B8DEF; }
+  .c2 { background-color: #FF6363; }
+  .c3 { background-color: #52C47A; }
+  .c4 { background-color: #FFB030; }
+  .tc1 { color: #5B8DEF; }
+  .tc2 { color: #FF6363; }
+  .tc3 { color: #52C47A; }
+  .tc4 { color: #FFB030; }
+</style>
+</head>
+<body>
+<div class="modal">
+
+  <!-- ======== HEADER ======== -->
+  <div class="modal-header">
+    <div class="close-btn">×</div>
+    <div class="msg-id">msg-ad-1498948286524334081</div>
+    <div class="campaign-title">쿠폰과 함께하는 멋진 혜택_2603261909</div>
+    <div class="status-row">
+      <span class="status-dot"></span>
+      <span>발송종료</span>
+      <span style="color:#DDD">|</span>
+      <span>2026. 05. 02. 16:30</span>
+    </div>
+  </div>
+  <div class="divider"></div>
+
+  <!-- ======== 발송 성과 ======== -->
+  <div class="delivery-section">
+    <div class="delivery-left">
+      <div class="section-label">발송 성과</div>
+      <div class="perf-metrics">
+        <div>
+          <div class="perf-metric-name">발송수</div>
+          <div class="perf-metric-val">
+            <span class="perf-num">1,225</span>
+          </div>
+        </div>
+        <div>
+          <div class="perf-metric-name">열람수</div>
+          <div class="perf-metric-val">
+            <span class="perf-num">675</span>
+            <span class="perf-rate">55.1%</span>
+          </div>
+        </div>
+        <div>
+          <div class="perf-metric-name">클릭수</div>
+          <div class="perf-metric-val">
+            <span class="perf-num">140</span>
+            <span class="perf-rate">11.4%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="data-refresh">데이터 조회 기준 26. 06. 30 13:50 ↺</div>
+  </div>
+  <div class="divider"></div>
+
+  <!-- ======== 상세 정보 탭 ======== -->
+  <div class="detail-header">
+    <div class="detail-label">상세 정보</div>
+    <div class="main-tabs">
+      <div class="main-tab active">실험 성과</div>
+      <div class="main-tab">실험 정보</div>
+      <div class="main-tab">발송 설정</div>
+    </div>
+  </div>
+
+  <!-- ======== BODY ======== -->
+  <div class="modal-body">
+
+    <!-- ==== LEFT PANEL ==== -->
+    <div class="left-panel">
+      <div class="sub-tabs">
+        <div class="sub-tab active">실험 요약</div>
+        <div class="sub-tab">공통 지표</div>
+        <div class="sub-tab">메시지 지표</div>
+        <div class="sub-tab">전환 지표</div>
+      </div>
+
+      <div class="summary-content">
+
+        <!-- 1. 분배 현황 -->
+        <div class="summary-section">
+          <div class="summary-section-title">분배 현황</div>
+          <div class="dist-rows">
+
+            <!-- 발송수 bar -->
+            <div class="dist-row">
+              <div class="dist-row-label">발송수</div>
+              <div class="dist-bar">
+                <div class="dist-seg c1" style="width:20%">
+                  20%
+                  <div class="tip">메시지1 · 245명</div>
+                </div>
+                <div class="dist-seg c2" style="width:40%">
+                  40%
+                  <div class="tip">메시지2 · 490명</div>
+                </div>
+                <div class="dist-seg c3" style="width:30%">
+                  30%
+                  <div class="tip">메시지3 · 368명</div>
+                </div>
+                <div class="dist-seg c4" style="width:10%">
+                  10%
+                  <div class="tip">메시지4 · 122명</div>
+                </div>
+              </div>
+              <div class="dist-total-label" style="font-size:12px;color:#888">총 1,225명</div>
+            </div>
+
+          </div>
+          <div class="dist-legend">
+            <div class="legend-item"><div class="legend-chip c1"></div> 메시지1</div>
+            <div class="legend-item"><div class="legend-chip c2"></div> 메시지2</div>
+            <div class="legend-item"><div class="legend-chip c3"></div> 메시지3</div>
+            <div class="legend-item"><div class="legend-chip c4"></div> 메시지4</div>
+          </div>
+        </div>
+
+        <!-- 3. 핵심 성과 비교 -->
+        <div class="summary-section">
+          <div class="summary-section-title">핵심 성과 비교</div>
+          <div class="kpi-grid">
+
+            <!-- 열람률 -->
+            <div class="kpi-card">
+              <div class="kpi-card-title">
+                열람률
+                <span class="kpi-card-subtitle">열람수 ÷ 발송수</span>
+              </div>
+              <div class="h-bars">
+                <div class="h-bar-row">
+                  <div class="h-bar-msg-label tc1">메시지1</div>
+                  <div class="h-bar-track">
+                    <div class="h-bar-fill c1" style="width:87%"></div>
+                  </div>
+                  <div class="h-bar-val">54%</div>
+                </div>
+                <div class="h-bar-row">
+                  <div class="h-bar-msg-label tc2">메시지2 👑</div>
+                  <div class="h-bar-track">
+                    <div class="h-bar-fill c2" style="width:100%"></div>
+                  </div>
+                  <div class="h-bar-val winner-val tc2">62%</div>
+                </div>
+                <div class="h-bar-row">
+                  <div class="h-bar-msg-label tc3">메시지3</div>
+                  <div class="h-bar-track">
+                    <div class="h-bar-fill c3" style="width:77%"></div>
+                  </div>
+                  <div class="h-bar-val">48%</div>
+                </div>
+                <div class="h-bar-row">
+                  <div class="h-bar-msg-label tc4">메시지4</div>
+                  <div class="h-bar-track">
+                    <div class="h-bar-fill c4" style="width:82%"></div>
+                  </div>
+                  <div class="h-bar-val">51%</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 클릭률 -->
+            <div class="kpi-card">
+              <div class="kpi-card-title">
+                클릭률
+                <span class="kpi-card-subtitle">클릭수 ÷ 발송수</span>
+              </div>
+              <div class="h-bars">
+                <div class="h-bar-row">
+                  <div class="h-bar-msg-label tc1">메시지1</div>
+                  <div class="h-bar-track">
+                    <div class="h-bar-fill c1" style="width:42%"></div>
+                  </div>
+                  <div class="h-bar-val">8%</div>
+                </div>
+                <div class="h-bar-row">
+                  <div class="h-bar-msg-label tc2">메시지2 👑</div>
+                  <div class="h-bar-track">
+                    <div class="h-bar-fill c2" style="width:100%"></div>
+                  </div>
+                  <div class="h-bar-val winner-val tc2">19%</div>
+                </div>
+                <div class="h-bar-row">
+                  <div class="h-bar-msg-label tc3">메시지3</div>
+                  <div class="h-bar-track">
+                    <div class="h-bar-fill c3" style="width:32%"></div>
+                  </div>
+                  <div class="h-bar-val">6%</div>
+                </div>
+                <div class="h-bar-row">
+                  <div class="h-bar-msg-label tc4">메시지4</div>
+                  <div class="h-bar-track">
+                    <div class="h-bar-fill c4" style="width:21%"></div>
+                  </div>
+                  <div class="h-bar-val">4%</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 4. 비용 효율 -->
+        <div class="summary-section">
+          <div class="summary-section-title">비용 효율 <span style="font-size:11px;color:#BBBBBB;font-weight:400">낮을수록 효율적</span></div>
+          <div class="cost-cards">
+
+            <!-- 클릭당 비용 CPC -->
+            <div class="cost-card">
+              <div class="cost-card-title">클릭당 비용 (CPC)</div>
+              <div class="cost-items">
+                <div class="cost-item">
+                  <div class="cost-item-left"><div class="msg-dot c1"></div><span>메시지1</span></div>
+                  <div class="cost-val">250원</div>
+                </div>
+                <div class="cost-item">
+                  <div class="cost-item-left"><div class="msg-dot c2"></div><span>메시지2</span></div>
+                  <div class="cost-val best"><span class="best-chip">최저</span>105원</div>
+                </div>
+                <div class="cost-item">
+                  <div class="cost-item-left"><div class="msg-dot c3"></div><span>메시지3</span></div>
+                  <div class="cost-val">333원</div>
+                </div>
+                <div class="cost-item">
+                  <div class="cost-item-left"><div class="msg-dot c4"></div><span>메시지4</span></div>
+                  <div class="cost-val">500원</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 열람당 비용 CPO -->
+            <div class="cost-card">
+              <div class="cost-card-title">열람당 비용 (CPO)</div>
+              <div class="cost-items">
+                <div class="cost-item">
+                  <div class="cost-item-left"><div class="msg-dot c1"></div><span>메시지1</span></div>
+                  <div class="cost-val">37원</div>
+                </div>
+                <div class="cost-item">
+                  <div class="cost-item-left"><div class="msg-dot c2"></div><span>메시지2</span></div>
+                  <div class="cost-val best"><span class="best-chip">최저</span>32원</div>
+                </div>
+                <div class="cost-item">
+                  <div class="cost-item-left"><div class="msg-dot c3"></div><span>메시지3</span></div>
+                  <div class="cost-val">42원</div>
+                </div>
+                <div class="cost-item">
+                  <div class="cost-item-left"><div class="msg-dot c4"></div><span>메시지4</span></div>
+                  <div class="cost-val">39원</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div><!-- end left-panel -->
+
+    <!-- ==== RIGHT PANEL ==== -->
+    <div class="right-panel">
+      <div class="msg-nav">
+        <span class="nav-arr">&lt;</span>
+        <button class="msg-nav-btn">메시지 1</button>
+        <button class="msg-nav-btn active">메시지 2</button>
+        <button class="msg-nav-btn">메시지 3</button>
+        <button class="msg-nav-btn">메시지 4</button>
+        <span class="nav-arr">&gt;</span>
+      </div>
+
+      <div class="preview-title">미리보기</div>
+
+      <div class="phone-wrap">
+        <!-- KakaoTalk 상단 바 -->
+        <div class="kt-topbar">
+          <div class="kt-topbar-left">
+            <span class="kt-back">←</span>
+            <div>
+              <div class="kt-channel-name">카카오 이모티콘</div>
+              <div class="kt-channel-id">01012341234 ∨</div>
+            </div>
+          </div>
+          <div class="kt-topbar-icons">
+            <span>🔍</span><span>☰</span>
+          </div>
+        </div>
+
+        <!-- 채팅 영역 -->
+        <div class="kt-sender">(광고) 카카오 이모티콘</div>
+        <div class="kt-msg-row">
+          <div class="kt-avatar">😊</div>
+          <div>
+            <div class="kt-bubble">
+              <div class="kt-card-img">
+                <div class="kt-badge">OLIVE BETTER</div>
+                <div class="kt-card-headline">3월 올리브베리 PICK<br>쿠폰이 도착했어요!</div>
+                <div class="kt-coupon-box">
+                  <div class="kt-coupon-val">2,000</div>
+                  <div class="kt-coupon-cond">APP 15,000원 이상 구매 시</div>
+                </div>
+              </div>
+              <div class="kt-card-body">
+                <div class="kt-card-title">쿠폰과 함께하는 멋진 혜택</div>
+                <div class="kt-card-desc">올리브베리 PICK이 제안하는<br>다양한 상품을 만나보세요!</div>
+                <button class="kt-btn">쿠폰 받기</button>
+              </div>
+              <div class="kt-footer">수신거부 | 홈 &gt; 채널차단</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="preview-note">
+        <span>ⓘ</span>
+        <span>지표가 수집되는 메시지 구성 요소(이미지, 버튼 등)에 마우스를 올리면 해당 영역의 상세 지표를 확인할 수 있습니다.</span>
+      </div>
+    </div><!-- end right-panel -->
+
+  </div><!-- end modal-body -->
+</div><!-- end modal -->
+
+<script>
+  // Sub-tab switching (demo)
+  document.querySelectorAll('.sub-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+
+  // Main tab switching (demo)
+  document.querySelectorAll('.main-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+
+  // Message nav button switching
+  document.querySelectorAll('.msg-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.msg-nav-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
